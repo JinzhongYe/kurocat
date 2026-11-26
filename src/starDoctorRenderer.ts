@@ -1,4 +1,5 @@
 import doctorUrl from './assets/star-doctor-body.png';
+import handUrl from './assets/star-doctor-hand.png';
 
 export interface StarDoctorPose { x: number; y: number; size: number; tilt: number }
 interface Point { x: number; y: number }
@@ -25,36 +26,44 @@ export function starDoctorArm(pose: StarDoctorPose, hand: StarDoctorHand, cover:
   const bend = Math.min(18, distance * 0.18);
   const elbow = { x: (shoulder.x + target.x) / 2 + sign * bend, y: (shoulder.y + target.y) / 2 };
   const forearmLength = Math.max(1, Math.hypot(target.x - elbow.x, target.y - elbow.y));
-  const wrist = { x: target.x - (target.x - elbow.x) / forearmLength * 7, y: target.y - (target.y - elbow.y) / forearmLength * 7 };
+  const wrist = { x: target.x - (target.x - elbow.x) / forearmLength * 14, y: target.y - (target.y - elbow.y) / forearmLength * 14 };
   return { shoulder, elbow, wrist, target };
 }
 
 export class StarDoctorRenderer {
   private image: HTMLImageElement | null = null;
+  private handImage: HTMLImageElement | null = null;
   private failed = false;
 
   constructor(private readonly onReady: () => void) {}
 
   public prepare(): void {
     if (this.image) return;
-    const image = new Image();
-    this.image = image;
     this.failed = false;
-    image.onload = this.onReady;
-    image.onerror = () => {
-      this.failed = true;
-      console.error('Could not load the Star Doctor character image.');
-      this.onReady();
+    const load = (url: string) => {
+      const image = new Image();
+      image.onload = this.onReady;
+      image.onerror = () => {
+        this.failed = true;
+        console.error('Could not load a Star Doctor character image:', url);
+        this.onReady();
+      };
+      image.src = url;
+      return image;
     };
-    image.src = doctorUrl;
+    this.image = load(doctorUrl);
+    this.handImage = load(handUrl);
   }
 
   public release(): void {
-    if (!this.image) return;
-    this.image.onload = null;
-    this.image.onerror = null;
-    this.image.src = '';
+    for (const image of [this.image, this.handImage]) {
+      if (!image) continue;
+      image.onload = null;
+      image.onerror = null;
+      image.src = '';
+    }
     this.image = null;
+    this.handImage = null;
     this.failed = false;
   }
 
@@ -92,43 +101,79 @@ export class StarDoctorRenderer {
     ctx.lineWidth = 1.65;
     ctx.strokeStyle = '#392b16';
     ctx.fillStyle = '#fff4db';
+    const amount = Math.max(0, Math.min(1, cover));
     for (const hand of hands) {
       const arm = starDoctorArm(pose, hand, cover);
       if (layer === 'upper') {
-        ctx.globalAlpha = 1 - Math.max(0, Math.min(1, cover));
-        this.drawSleeve(ctx, arm.shoulder, arm.elbow, 13, 11.5);
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = 1 - amount;
+        this.drawSleeve(ctx, arm);
       } else {
-        // Raised arms cross in front of the head; leaving them behind it detaches the forearms.
-        if (cover > 0) {
-          ctx.globalAlpha = Math.min(1, cover);
-          this.drawSleeve(ctx, arm.shoulder, arm.elbow, 13, 11.5);
-          ctx.globalAlpha = 1;
+        if (amount < 1) {
+          ctx.save();
+          ctx.globalAlpha = 1 - amount;
+          const length = Math.max(1, Math.hypot(arm.wrist.x - arm.elbow.x, arm.wrist.y - arm.elbow.y));
+          const ux = (arm.wrist.x - arm.elbow.x) / length;
+          const uy = (arm.wrist.y - arm.elbow.y) / length;
+          const x = arm.elbow.x - ux * 3;
+          const y = arm.elbow.y - uy * 3;
+          // Clip a complete sleeve, so the elbow has no stroked division or end cap.
+          ctx.beginPath();
+          ctx.moveTo(x - uy * 2000, y + ux * 2000);
+          ctx.lineTo(x + uy * 2000, y - ux * 2000);
+          ctx.lineTo(x + (uy + ux) * 2000, y + (uy - ux) * 2000);
+          ctx.lineTo(x + (ux - uy) * 2000, y + (ux + uy) * 2000);
+          ctx.closePath();
+          ctx.clip();
+          this.drawSleeve(ctx, arm);
+          ctx.restore();
         }
-        this.drawSleeve(ctx, arm.elbow, arm.wrist, 11.5, 9);
-        ctx.fillStyle = '#ffc52f';
-        ctx.beginPath();
-        ctx.ellipse(arm.target.x, arm.target.y, 14.5 * (1 + hand.squash * 0.14), 11.5 * (1 - hand.squash * 0.12), 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = '#fff4db';
+        if (amount > 0) {
+          ctx.globalAlpha = amount;
+          this.drawSleeve(ctx, arm);
+        }
+        ctx.globalAlpha = 1;
+        if (this.handImage?.complete && this.handImage.naturalWidth) {
+          ctx.save();
+          ctx.translate(arm.target.x, arm.target.y);
+          ctx.rotate(Math.atan2(arm.target.y - arm.wrist.y, arm.target.x - arm.wrist.x) + Math.PI / 2);
+          const squash = Math.max(0, Math.min(1, hand.squash));
+          ctx.scale((hand.side === 'left' ? -1 : 1) * (1 + squash * 0.14), 1 - squash * 0.12);
+          // Keep the painted wrist tucked inside the sleeve cuff.
+          ctx.beginPath();
+          ctx.rect(-64, -64, 128, 76);
+          ctx.clip();
+          ctx.drawImage(this.handImage, -64 * 0.47, -64 * 0.49, 64, 64);
+          ctx.restore();
+        } else if (this.failed) {
+          ctx.fillStyle = '#dc683d';
+          ctx.font = '20px sans-serif';
+          ctx.fillText('!', arm.target.x, arm.target.y);
+          ctx.fillStyle = '#fff4db';
+        }
       }
     }
     ctx.restore();
   }
 
-  private drawSleeve(ctx: CanvasRenderingContext2D, from: Point, to: Point, shoulderRadius: number, cuffRadius: number): void {
-    const length = Math.max(1, Math.hypot(to.x - from.x, to.y - from.y));
-    const ux = (to.x - from.x) / length;
-    const uy = (to.y - from.y) / length;
-    const nx = -uy;
-    const ny = ux;
+  private drawSleeve(ctx: CanvasRenderingContext2D, arm: ReturnType<typeof starDoctorArm>): void {
+    const { shoulder: s, elbow: e, wrist: w } = arm;
+    const l1 = Math.max(1, Math.hypot(e.x - s.x, e.y - s.y));
+    const l2 = Math.max(1, Math.hypot(w.x - e.x, w.y - e.y));
+    const span = Math.max(1, Math.hypot(w.x - s.x, w.y - s.y));
+    const d1 = { x: (e.x - s.x) / l1, y: (e.y - s.y) / l1 };
+    const d2 = { x: (w.x - e.x) / l2, y: (w.y - e.y) / l2 };
+    const tangent = { x: (w.x - s.x) / span, y: (w.y - s.y) / span };
+    const edge = (p: Point, direction: Point, radius: number, side: number) => ({ x: p.x - direction.y * radius * side, y: p.y + direction.x * radius * side });
+    const a = edge(s, d1, 13.5, 1), b = edge(e, tangent, 13, 1), c = edge(w, d2, 9.5, 1);
+    const d = edge(w, d2, 9.5, -1), f = edge(e, tangent, 13, -1), g = edge(s, d1, 13.5, -1);
     ctx.beginPath();
-    ctx.moveTo(from.x + nx * shoulderRadius, from.y + ny * shoulderRadius);
-    ctx.lineTo(to.x + nx * cuffRadius, to.y + ny * cuffRadius);
-    ctx.quadraticCurveTo(to.x + ux * cuffRadius, to.y + uy * cuffRadius, to.x - nx * cuffRadius, to.y - ny * cuffRadius);
-    ctx.lineTo(from.x - nx * shoulderRadius, from.y - ny * shoulderRadius);
-    ctx.quadraticCurveTo(from.x - ux * shoulderRadius, from.y - uy * shoulderRadius, from.x + nx * shoulderRadius, from.y + ny * shoulderRadius);
+    ctx.moveTo(a.x, a.y);
+    ctx.bezierCurveTo(a.x + d1.x * l1 * 0.45, a.y + d1.y * l1 * 0.45, b.x - tangent.x * l1 * 0.35, b.y - tangent.y * l1 * 0.35, b.x, b.y);
+    ctx.bezierCurveTo(b.x + tangent.x * l2 * 0.35, b.y + tangent.y * l2 * 0.35, c.x - d2.x * l2 * 0.45, c.y - d2.y * l2 * 0.45, c.x, c.y);
+    ctx.quadraticCurveTo(w.x + d2.x * 9.5, w.y + d2.y * 9.5, d.x, d.y);
+    ctx.bezierCurveTo(d.x - d2.x * l2 * 0.45, d.y - d2.y * l2 * 0.45, f.x + tangent.x * l2 * 0.35, f.y + tangent.y * l2 * 0.35, f.x, f.y);
+    ctx.bezierCurveTo(f.x - tangent.x * l1 * 0.35, f.y - tangent.y * l1 * 0.35, g.x + d1.x * l1 * 0.45, g.y + d1.y * l1 * 0.45, g.x, g.y);
+    ctx.quadraticCurveTo(s.x - d1.x * 13.5, s.y - d1.y * 13.5, a.x, a.y);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();

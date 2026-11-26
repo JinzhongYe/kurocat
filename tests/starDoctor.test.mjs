@@ -12,7 +12,7 @@ async function loadTs(path, transform = s => s) {
 
 const { DEFAULT_BUILTIN_CATS, is2DOnlySkin } = await loadTs('../src/catSkins.ts');
 const { StarDoctorRenderer, starDoctorPoint, starDoctorArm } = await loadTs('../src/starDoctorRenderer.ts', s =>
-  s.replace("import doctorUrl from './assets/star-doctor-body.png';", "const doctorUrl = 'star-doctor-body.png';"));
+  s.replace(/import (\w+) from '[^']+\.png';/g, 'const $1 = "sprite.png";'));
 
 test('Star Doctor has its own selectable ID and uses 2D in every locale', () => {
   assert.equal(DEFAULT_BUILTIN_CATS.filter(c => c.id === 'star-doctor').length, 1);
@@ -51,10 +51,11 @@ test('sleeves stay attached to the artwork during body movement and preserve exa
 test('renderer loads once, draws the body and shared face, and releases its image', t => {
   const previousImage = globalThis.Image;
   let image;
+  const images = [];
   globalThis.Image = class {
     complete = false;
     naturalWidth = 0;
-    constructor() { image = this; }
+    constructor() { image = this; images.push(this); }
   };
   t.after(() => { globalThis.Image = previousImage; });
   let ready = 0;
@@ -65,15 +66,21 @@ test('renderer loads once, draws the body and shared face, and releases its imag
   let faces = 0;
   const drawFace = () => { faces++; };
   renderer.prepare();
+  image = images[0];
   const originalImage = image;
   renderer.prepare();
   assert.equal(image, originalImage);
+  assert.equal(images.length, 2, 'body and mitten are loaded once each');
   renderer.render(ctx, pose, drawFace);
   assert.equal(calls.length, 0, 'never draw an unloaded image');
   image.complete = true;
   image.naturalWidth = 1254;
   image.onload();
   assert.equal(ready, 1);
+  images[1].complete = true;
+  images[1].naturalWidth = 1280;
+  images[1].onload();
+  assert.equal(ready, 2);
   calls.length = 0;
   renderer.render(ctx, pose, drawFace);
   assert.equal(faces, 1);
@@ -83,14 +90,19 @@ test('renderer loads once, draws the body and shared face, and releases its imag
   const hands = [{ side: 'left', x: 80, y: 350, squash: 0 }];
   calls.length = 0;
   renderer.renderSleeves(ctx, pose, hands, 0, 'lower');
-  assert.equal(calls.filter(c => c[0] === 'fill').length, 2);
+  assert.equal(calls.filter(c => c[0] === 'stroke').length, 1, 'one continuous sleeve outline');
+  assert.ok(calls.some(c => c[0] === 'drawImage' && c[1] === images[1]));
+  assert.ok(calls.some(c => c[0] === 'scale' && c[1] === -1), 'left mitten is mirrored');
   calls.length = 0;
   renderer.renderSleeves(ctx, pose, hands, 1, 'lower');
-  assert.equal(calls.filter(c => c[0] === 'fill').length, 3, 'raised upper sleeve remains visible in front of the head');
+  assert.equal(calls.filter(c => c[0] === 'stroke').length, 1, 'raised arm keeps a continuous outline');
+  assert.ok(calls.some(c => c[0] === 'drawImage' && c[1] === images[1]));
   renderer.release();
   assert.equal(image.onload, null);
   assert.equal(image.onerror, null);
   assert.equal(image.src, '');
+  assert.equal(images[1].src, '');
+  assert.equal(images[1].onload, null);
   renderer.prepare();
   assert.notEqual(image, originalImage, 'can switch away and back');
   renderer.release();

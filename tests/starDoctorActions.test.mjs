@@ -13,7 +13,7 @@ after(() => {
 });
 for (const name of ['keyboardLayout', 'catSkins', 'starDoctorRenderer', 'catEngine']) {
   const source = readFileSync(new URL(`../src/${name}.ts`, import.meta.url), 'utf8')
-    .replace(/import doctorUrl from '[^']+\.png';/, "const doctorUrl = 'sprite.png';");
+    .replace(/import (\w+) from '[^']+\.png';/g, 'const $1 = "sprite.png";' );
   const code = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
   }).outputText.replace(/from '(\.\/[^']+)'/g, "from '$1.mjs'");
