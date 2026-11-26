@@ -1,0 +1,42 @@
+name: Star Doctor Windows
+
+on:
+  push:
+    branches: [main, star-doctor]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: star-doctor-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+      - run: npm ci
+      - run: node --test tests/starDoctor.test.mjs
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --lib cats::tests
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --lib i18n::tests
+      - name: Build portable Windows executable
+        run: npm run tauri -- build --no-bundle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KuroCat-Star-Doctor-Windows-x64
+          if-no-files-found: error
+          path: |
+            src-tauri/target/release/KuroCat.exe
+            docs/STAR_DOCTOR.md
+            LICENSE

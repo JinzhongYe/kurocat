@@ -10,7 +10,7 @@ import {
 } from './catEngine';
 import { catAudio } from './audio';
 import { AgentCompanionController, type AgentCompanionEvent } from './agentCompanion';
-import { DEFAULT_BUILTIN_CATS, type CatSkinConfig } from './catSkins';
+import { DEFAULT_BUILTIN_CATS, is2DOnlySkin, type CatSkinConfig } from './catSkins';
 import {
   getKeyboardLayout,
   resolveKeyByVk,
@@ -290,7 +290,7 @@ function schedule3dDisposeIf2D(): void {
 }
 
 function shouldWearHeadphonesNow(): boolean {
-  if (settings.catBreed === 'dafeiyu') return false;
+  if (is2DOnlySkin(settings.catBreed)) return false;
   const hm: HeadphoneMode =
     settings.headphoneMode === 'auto' || settings.headphoneMode === 'on'
       ? settings.headphoneMode
@@ -303,7 +303,7 @@ function shouldWearHeadphonesNow(): boolean {
 function wants3DNow(): boolean {
   return (
     settings.renderMode !== '2d' &&
-    settings.catBreed !== 'dafeiyu' &&
+    !is2DOnlySkin(settings.catBreed) &&
     !tailPickerOpen &&
     !isWin7Ulw &&
     !webgl3dUnavailable
@@ -534,13 +534,14 @@ function syncMenuUI(): void {
   document.querySelectorAll<HTMLButtonElement>('[data-collar]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.collar === collarColor);
   });
+  document.getElementById('btn-open-tail-picker')?.closest('.menu-scale-row')?.classList.toggle('hidden', settings.catBreed === 'star-doctor');
   const renderModeRowEl = document.getElementById('render-mode-row');
   if (renderModeRowEl) {
-    renderModeRowEl.classList.toggle('hidden', settings.catBreed === 'dafeiyu');
+    renderModeRowEl.classList.toggle('hidden', is2DOnlySkin(settings.catBreed));
   }
   const collarRowEl = document.getElementById('collar-row');
   if (collarRowEl) {
-    collarRowEl.classList.toggle('hidden', renderMode === '2d' || settings.catBreed === 'dafeiyu');
+    collarRowEl.classList.toggle('hidden', renderMode === '2d' || is2DOnlySkin(settings.catBreed));
   }
 
   const headphoneMode: HeadphoneMode =
@@ -552,7 +553,7 @@ function syncMenuUI(): void {
   });
   const headphoneRowEl = document.getElementById('headphone-row');
   if (headphoneRowEl) {
-    headphoneRowEl.classList.toggle('hidden', settings.catBreed === 'dafeiyu');
+    headphoneRowEl.classList.toggle('hidden', is2DOnlySkin(settings.catBreed));
   }
 
   const headerEl = document.getElementById('menu-header');

@@ -10,10 +10,11 @@ import {
 import { catAudio } from './audio';
 import { resolveCustomSkin, type CatSkinConfig, type ResolvedSkin } from './catSkins';
 import { DaFeiYuRenderer, type DaFeiYuLayout } from './dafeiyuRenderer';
+import { StarDoctorRenderer } from './starDoctorRenderer';
 
 export const LOGICAL_W = 420;
 export const LOGICAL_H = 440;
-export type CatBreed = 'black' | 'ragdoll' | 'dafeiyu';
+export type CatBreed = 'black' | 'ragdoll' | 'dafeiyu' | 'star-doctor';
 export type KeyboardOrientation = 'cat' | 'viewer';
 export type TailKeyMode = 'smart' | 'custom' | 'edge' | 'off';
 
@@ -254,6 +255,7 @@ export class KuroCatEngine {
   private renderScale = 1.0;
   private embedded = false;
   private dafeiyu = new DaFeiYuRenderer();
+  private starDoctor = new StarDoctorRenderer(() => this.wakeRendering());
   private catTail = {
     heldVks: new Set<number>(),
     targetX: 320,
@@ -588,6 +590,7 @@ export class KuroCatEngine {
   }
 
   public setCatAppearance(breedId: string, skin?: CatSkinConfig | null): void {
+    if (breedId !== 'star-doctor' && this.catBreed === 'star-doctor') this.starDoctor.release();
     if (breedId !== 'dafeiyu' && this.catBreed === 'dafeiyu') {
       this.dafeiyu.releaseSprites();
     }
@@ -595,6 +598,10 @@ export class KuroCatEngine {
       this.catBreed = 'dafeiyu';
       this.customSkin = null;
       catAudio.setPurrIntensity(0);
+    } else if (breedId === 'star-doctor') {
+      this.catBreed = 'star-doctor';
+      this.customSkin = null;
+      this.starDoctor.prepare();
     } else if ((breedId === 'black' || breedId === 'ragdoll') && (!skin || skin.builtin)) {
       this.catBreed = breedId;
       this.customSkin = null;
@@ -909,6 +916,7 @@ export class KuroCatEngine {
   }
 
   public releaseCachedResources(): void {
+    this.starDoctor.release();
     this.dafeiyu.releaseSprites();
     if (this.kbCacheCanvas) {
       this.kbCacheCanvas.width = 0;
@@ -2357,6 +2365,20 @@ export class KuroCatEngine {
     const breathFreq = 2.1 - this.sleepAmount * 0.95;
     const breath = Math.sin(this.elapsed * breathFreq) * (1.0 + this.sleepAmount * 0.65);
     const purrShift = this.squintAmount > 0.4 ? Math.sin(this.elapsed * 22) * 0.45 * this.squintAmount : 0;
+
+    if (this.catBreed === 'star-doctor') {
+      this.starDoctor.render(ctx, this.logicalW, this.logicalH, {
+        elapsed: this.elapsed, typingEnergy: this.typingEnergy,
+        tilt: this.headTilt, sleep: this.sleepAmount, happy: this.squintAmount,
+        curious: this.curiousAmount, cross: this.crossAmount, privacy: this.privacyMode,
+      });
+      if (this.showKeyBubbles && !this.privacyMode) {
+        this.drawKeyBubbles(ctx);
+        this.drawMouseBadges(ctx);
+      }
+      ctx.restore();
+      return;
+    }
 
     if (this.catBreed === 'dafeiyu') {
       const now = performance.now();
