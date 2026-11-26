@@ -178,7 +178,7 @@ pub fn sanitize_cat_id(raw: &str) -> String {
 }
 
 pub fn builtin_cats() -> Vec<CatSkinConfig> {
-    vec![
+    let mut list = vec![
         CatSkinConfig {
             id: "black".to_string(),
             name: "小黑猫".to_string(),
@@ -529,7 +529,29 @@ pub fn builtin_cats() -> Vec<CatSkinConfig> {
             body_chubbiness: None,
             spots: vec![],
         },
-    ]
+    ];
+    list.push(CatSkinConfig {
+        id: "star-doctor".to_string(),
+        name: "\u{661f}\u{661f}\u{5c0f}\u{533b}\u{751f}".to_string(),
+        emoji: Some("\u{2b50}".to_string()),
+        fur_color: "#fff4db".to_string(),
+        fur_secondary_color: Some("#fff4db".to_string()),
+        arm_color: Some("#fff4db".to_string()),
+        paw_color: Some("#ffc52f".to_string()),
+        outline_color: Some("#392b16".to_string()),
+        paw_outline_color: Some("#392b16".to_string()),
+        eye_color_top: "#fff5da".to_string(),
+        eye_color_bottom: Some("#fff5da".to_string()),
+        pupil_color: Some("#151515".to_string()),
+        eye_catchlight: Some(true),
+        eye_rim_color: Some("#392b16".to_string()),
+        squint_color: Some("#392b16".to_string()),
+        blush_color: Some("#f37932".to_string()),
+        accent_color: Some("#ffbd35".to_string()),
+        accent_side_color: Some("#dc8a20".to_string()),
+        ..list[0].clone()
+    });
+    list
 }
 
 pub fn load_custom_cats() -> Vec<CatSkinConfig> {
@@ -946,6 +968,16 @@ pub fn cat_schema_guide() -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn star_doctor_is_a_selectable_builtin() {
+        let cats = builtin_cats();
+        let doctor = cats.iter().find(|cat| cat.id == "star-doctor").expect("Star Doctor exists");
+        assert!(doctor.builtin);
+        assert_eq!(cats.iter().filter(|cat| cat.id == "star-doctor").count(), 1);
+        assert!(cats.iter().any(|cat| cat.id == "dafeiyu"));
+        assert!(cats.iter().any(|cat| cat.id == "black"));
+    }
 
     #[test]
     fn validates_colors_and_clamps_contour_fields() {

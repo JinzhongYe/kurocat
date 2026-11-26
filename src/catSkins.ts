@@ -272,6 +272,32 @@ export function resolveCustomSkin(raw: CatSkinConfig): ResolvedSkin {
   };
 }
 
+export function is2DOnlySkin(id?: string): boolean {
+  return id === 'dafeiyu' || id === 'star-doctor';
+}
+
+export const STAR_DOCTOR_SKIN: CatSkinConfig = {
+    id: 'star-doctor',
+    name: '星星小医生',
+    emoji: '⭐',
+    builtin: true,
+    furColor: '#fff4db',
+    furSecondaryColor: '#fff4db',
+    armColor: '#fff4db',
+    pawColor: '#ffc52f',
+    outlineColor: '#392b16',
+    pawOutlineColor: '#392b16',
+    eyeColorBottom: '#fff5da',
+    pupilColor: '#151515',
+    eyeCatchlight: true,
+    eyeRimColor: '#392b16',
+    squintColor: '#392b16',
+    blushColor: '#f37932',
+    eyeColorTop: '#fff5da',
+    accentColor: '#ffbd35',
+    accentSideColor: '#dc8a20',
+  };
+
 export const DEFAULT_BUILTIN_CATS: CatSkinConfig[] = [
   {
     id: 'black',
@@ -293,6 +319,7 @@ export const DEFAULT_BUILTIN_CATS: CatSkinConfig[] = [
     accentColor: '#7ac7ff',
     accentSideColor: '#4690d8',
   },
+  STAR_DOCTOR_SKIN,
   {
     id: 'dafeiyu',
     name: '大肥鱼',

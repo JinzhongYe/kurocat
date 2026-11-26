@@ -8,12 +8,13 @@ import {
   resolveKeyByVk,
 } from './keyboardLayout';
 import { catAudio } from './audio';
-import { resolveCustomSkin, type CatSkinConfig, type ResolvedSkin } from './catSkins';
+import { STAR_DOCTOR_SKIN, resolveCustomSkin, type CatSkinConfig, type ResolvedSkin } from './catSkins';
 import { DaFeiYuRenderer, type DaFeiYuLayout } from './dafeiyuRenderer';
+import { StarDoctorRenderer } from './starDoctorRenderer';
 
 export const LOGICAL_W = 420;
 export const LOGICAL_H = 440;
-export type CatBreed = 'black' | 'ragdoll' | 'dafeiyu';
+export type CatBreed = 'black' | 'ragdoll' | 'dafeiyu' | 'star-doctor';
 export type KeyboardOrientation = 'cat' | 'viewer';
 export type TailKeyMode = 'smart' | 'custom' | 'edge' | 'off';
 
@@ -254,6 +255,7 @@ export class KuroCatEngine {
   private renderScale = 1.0;
   private embedded = false;
   private dafeiyu = new DaFeiYuRenderer();
+  private starDoctor = new StarDoctorRenderer(() => this.wakeRendering());
   private catTail = {
     heldVks: new Set<number>(),
     targetX: 320,
@@ -508,7 +510,7 @@ export class KuroCatEngine {
     prevAnyKeyAt: number,
     now: number,
   ): boolean {
-    if (this.tailKeyMode === 'off') return false;
+    if (this.catBreed === 'star-doctor' || this.tailKeyMode === 'off') return false;
     if (this.tailKeyMode === 'custom') {
       return this.tailKeyIdSet.has(spec.id);
     }
@@ -588,6 +590,7 @@ export class KuroCatEngine {
   }
 
   public setCatAppearance(breedId: string, skin?: CatSkinConfig | null): void {
+    if (breedId !== 'star-doctor' && this.catBreed === 'star-doctor') this.starDoctor.release();
     if (breedId !== 'dafeiyu' && this.catBreed === 'dafeiyu') {
       this.dafeiyu.releaseSprites();
     }
@@ -595,6 +598,10 @@ export class KuroCatEngine {
       this.catBreed = 'dafeiyu';
       this.customSkin = null;
       catAudio.setPurrIntensity(0);
+    } else if (breedId === 'star-doctor') {
+      this.catBreed = 'star-doctor';
+      this.customSkin = resolveCustomSkin(skin ?? STAR_DOCTOR_SKIN);
+      this.starDoctor.prepare();
     } else if ((breedId === 'black' || breedId === 'ragdoll') && (!skin || skin.builtin)) {
       this.catBreed = breedId;
       this.customSkin = null;
@@ -909,6 +916,7 @@ export class KuroCatEngine {
   }
 
   public releaseCachedResources(): void {
+    this.starDoctor.release();
     this.dafeiyu.releaseSprites();
     if (this.kbCacheCanvas) {
       this.kbCacheCanvas.width = 0;
@@ -2357,6 +2365,28 @@ export class KuroCatEngine {
     const breathFreq = 2.1 - this.sleepAmount * 0.95;
     const breath = Math.sin(this.elapsed * breathFreq) * (1.0 + this.sleepAmount * 0.65);
     const purrShift = this.squintAmount > 0.4 ? Math.sin(this.elapsed * 22) * 0.45 * this.squintAmount : 0;
+
+    if (this.catBreed === 'star-doctor') {
+      const shoulder = this.spinePoint(0.65, breath);
+      const size = this.catHeight + 70;
+      const skin = this.customSkin ?? resolveCustomSkin(STAR_DOCTOR_SKIN);
+      const pose = { x: shoulder.x, y: shoulder.y + this.deskHopY, size, tilt: this.headTilt };
+      const hands = [this.leftPaw, this.rightPaw].map(paw => ({
+        side: paw.side, x: paw.pos.x, y: paw.pos.y, squash: paw.impactSquash,
+      }));
+      this.starDoctor.renderSleeves(ctx, pose, hands, this.privacyClose, 'upper');
+      this.starDoctor.render(ctx, pose, () => this.drawCustomEyes(ctx, skin, this.faceTurnX * 0.2, 0));
+      this.drawMiniMouse(ctx);
+      this.drawKeyboard(ctx);
+      this.starDoctor.renderSleeves(ctx, pose, hands, this.privacyClose, 'lower');
+      this.drawCatAliveFx(ctx, performance.now(), breath);
+      if (this.showKeyBubbles && !this.privacyMode) {
+        this.drawKeyBubbles(ctx);
+        this.drawMouseBadges(ctx);
+      }
+      ctx.restore();
+      return;
+    }
 
     if (this.catBreed === 'dafeiyu') {
       const now = performance.now();

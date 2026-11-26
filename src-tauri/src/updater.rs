@@ -3,9 +3,8 @@ use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Emitter};
 
-const QIANYI_API_LATEST: &str = "https://qianyi.one/kurocat/releases/latest.json";
-const REPO_API_LATEST: &str = "https://api.github.com/repos/qianyiai/kurocat/releases/latest";
-const REPO_RELEASES_PAGE: &str = "https://github.com/qianyiai/kurocat/releases/latest";
+const REPO_API_LATEST: &str = "https://api.github.com/repos/JinzhongYe/kurocat/releases/latest";
+const REPO_RELEASES_PAGE: &str = "https://github.com/JinzhongYe/kurocat/releases/latest";
 
 pub const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -606,13 +605,7 @@ fn fetch_json_from_url(url: &str, accept: Option<&str>, timeout_ms: i32) -> Resu
 
 #[cfg(windows)]
 fn fetch_latest_release_json() -> Result<String, String> {
-    // Primary: fast domestic CDN mirror (no proxy needed, zero GitHub API rate limit)
-    if let Ok(text) = fetch_json_from_url(QIANYI_API_LATEST, Some("Accept: application/json\r\n"), 8_000) {
-        if serde_json::from_str::<GhRelease>(&text).is_ok() {
-            return Ok(text);
-        }
-    }
-    // Fallback: official GitHub Releases API
+    // Fork builds must not replace their bundled character with upstream releases.
     fetch_json_from_url(
         REPO_API_LATEST,
         Some("Accept: application/vnd.github+json\r\n"),
@@ -663,13 +656,6 @@ fn fetch_json_from_url(url: &str, accept: &str, connect_secs: &str, max_secs: &s
 
 #[cfg(not(windows))]
 fn fetch_latest_release_json() -> Result<String, String> {
-    // Primary: fast domestic CDN mirror (no proxy needed, zero GitHub API rate limit)
-    if let Ok(text) = fetch_json_from_url(QIANYI_API_LATEST, "Accept: application/json", "5", "9") {
-        if serde_json::from_str::<GhRelease>(&text).is_ok() {
-            return Ok(text);
-        }
-    }
-    // Fallback: official GitHub Releases API
     fetch_json_from_url(REPO_API_LATEST, "Accept: application/vnd.github+json", "10", "20")
 }
 
