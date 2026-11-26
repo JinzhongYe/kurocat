@@ -11,7 +11,7 @@ async function loadTs(path, transform = s => s) {
 }
 
 const { DEFAULT_BUILTIN_CATS, is2DOnlySkin } = await loadTs('../src/catSkins.ts');
-const { StarDoctorRenderer } = await loadTs('../src/starDoctorRenderer.ts', s =>
+const { StarDoctorRenderer, starDoctorPoint, starDoctorArm } = await loadTs('../src/starDoctorRenderer.ts', s =>
   s.replace("import doctorUrl from './assets/star-doctor-body.png';", "const doctorUrl = 'star-doctor-body.png';"));
 
 test('Star Doctor has its own selectable ID and uses 2D in every locale', () => {
@@ -23,6 +23,28 @@ test('Star Doctor has its own selectable ID and uses 2D in every locale', () => 
     const catalog = JSON.parse(readFileSync(new URL(`../locales/${locale}.json`, import.meta.url)));
     assert.ok(catalog.breeds['star-doctor']);
     assert.ok(!catalog.breeds['star-doctor'].includes('?'));
+  }
+});
+
+test('sleeves stay attached to the artwork during body movement and preserve exact key targets', () => {
+  for (const tilt of [-0.5, 0, 0.5]) {
+    const pose = { x: 200, y: 240, size: 300, tilt };
+    const angle = Math.max(-0.08, Math.min(0.08, tilt * 0.4));
+    for (const side of ['left', 'right']) {
+      const hand = { side, x: side === 'left' ? 35 : 460, y: 355, squash: 0 };
+      const arm = starDoctorArm(pose, hand, 0);
+      const offset = (side === 'left' ? 0.38 - 0.485 : 0.59 - 0.485) * 300;
+      assert.ok(Math.abs(arm.shoulder.x - (200 + offset * Math.cos(angle))) < 1e-9);
+      assert.ok(Math.abs(arm.shoulder.y - (240 + offset * Math.sin(angle))) < 1e-9);
+      assert.deepEqual(arm.target, { x: hand.x, y: hand.y });
+      assert.ok(Math.abs(arm.elbow.x - (arm.shoulder.x + hand.x) / 2) <= 18);
+      const moved = starDoctorArm({ ...pose, x: 207, y: 251 }, hand, 0);
+      assert.ok(Math.abs(moved.shoulder.x - arm.shoulder.x - 7) < 1e-9);
+      assert.ok(Math.abs(moved.shoulder.y - arm.shoulder.y - 11) < 1e-9);
+      const covered = starDoctorArm(pose, hand, 1);
+      const eye = starDoctorPoint(pose, 0.485 + (side === 'left' ? -19.95 : 19.95) / 300, 0.425);
+      assert.deepEqual(covered.target, eye);
+    }
   }
 });
 
@@ -58,6 +80,13 @@ test('renderer loads once, draws the body and shared face, and releases its imag
   assert.equal(calls.filter(c => c[0] === 'drawImage').length, 1);
   assert.equal(calls[0][0], 'save');
   assert.equal(calls.at(-1)[0], 'restore');
+  const hands = [{ side: 'left', x: 80, y: 350, squash: 0 }];
+  calls.length = 0;
+  renderer.renderSleeves(ctx, pose, hands, 0, 'lower');
+  assert.equal(calls.filter(c => c[0] === 'fill').length, 2);
+  calls.length = 0;
+  renderer.renderSleeves(ctx, pose, hands, 1, 'lower');
+  assert.equal(calls.filter(c => c[0] === 'fill').length, 3, 'raised upper sleeve remains visible in front of the head');
   renderer.release();
   assert.equal(image.onload, null);
   assert.equal(image.onerror, null);

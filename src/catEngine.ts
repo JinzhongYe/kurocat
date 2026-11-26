@@ -2370,20 +2370,15 @@ export class KuroCatEngine {
       const shoulder = this.spinePoint(0.65, breath);
       const size = this.catHeight + 70;
       const skin = this.customSkin ?? resolveCustomSkin(STAR_DOCTOR_SKIN);
-      this.starDoctor.render(ctx, {
-        x: shoulder.x, y: shoulder.y + this.deskHopY, size, tilt: this.headTilt,
-      }, () => this.drawCustomEyes(ctx, skin, this.faceTurnX * 0.2, 0));
+      const pose = { x: shoulder.x, y: shoulder.y + this.deskHopY, size, tilt: this.headTilt };
+      const hands = [this.leftPaw, this.rightPaw].map(paw => ({
+        side: paw.side, x: paw.pos.x, y: paw.pos.y, squash: paw.impactSquash,
+      }));
+      this.starDoctor.renderSleeves(ctx, pose, hands, this.privacyClose, 'upper');
+      this.starDoctor.render(ctx, pose, () => this.drawCustomEyes(ctx, skin, this.faceTurnX * 0.2, 0));
       this.drawMiniMouse(ctx);
       this.drawKeyboard(ctx);
-      for (const paw of [this.leftPaw, this.rightPaw]) {
-        const sh = this.getLiveShoulder(paw, breath);
-        const eyeX = shoulder.x + (paw.side === 'left' ? -21 : 21);
-        const eyeY = shoulder.y - size * 0.225;
-        const cover = this.privacyClose;
-        const px = paw.pos.x * (1 - cover) + eyeX * cover;
-        const py = paw.pos.y * (1 - cover) + eyeY * cover;
-        this.drawPlumpCatArm(ctx, paw.side, sh.x, sh.y, px, py, paw.impactSquash, true);
-      }
+      this.starDoctor.renderSleeves(ctx, pose, hands, this.privacyClose, 'lower');
       this.drawCatAliveFx(ctx, performance.now(), breath);
       if (this.showKeyBubbles && !this.privacyMode) {
         this.drawKeyBubbles(ctx);
