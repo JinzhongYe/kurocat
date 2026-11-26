@@ -8,7 +8,7 @@ import {
   resolveKeyByVk,
 } from './keyboardLayout';
 import { catAudio } from './audio';
-import { resolveCustomSkin, type CatSkinConfig, type ResolvedSkin } from './catSkins';
+import { STAR_DOCTOR_SKIN, resolveCustomSkin, type CatSkinConfig, type ResolvedSkin } from './catSkins';
 import { DaFeiYuRenderer, type DaFeiYuLayout } from './dafeiyuRenderer';
 import { StarDoctorRenderer } from './starDoctorRenderer';
 
@@ -510,7 +510,7 @@ export class KuroCatEngine {
     prevAnyKeyAt: number,
     now: number,
   ): boolean {
-    if (this.tailKeyMode === 'off') return false;
+    if (this.catBreed === 'star-doctor' || this.tailKeyMode === 'off') return false;
     if (this.tailKeyMode === 'custom') {
       return this.tailKeyIdSet.has(spec.id);
     }
@@ -600,7 +600,7 @@ export class KuroCatEngine {
       catAudio.setPurrIntensity(0);
     } else if (breedId === 'star-doctor') {
       this.catBreed = 'star-doctor';
-      this.customSkin = null;
+      this.customSkin = resolveCustomSkin(skin ?? STAR_DOCTOR_SKIN);
       this.starDoctor.prepare();
     } else if ((breedId === 'black' || breedId === 'ragdoll') && (!skin || skin.builtin)) {
       this.catBreed = breedId;
@@ -2367,11 +2367,24 @@ export class KuroCatEngine {
     const purrShift = this.squintAmount > 0.4 ? Math.sin(this.elapsed * 22) * 0.45 * this.squintAmount : 0;
 
     if (this.catBreed === 'star-doctor') {
-      this.starDoctor.render(ctx, this.logicalW, this.logicalH, {
-        elapsed: this.elapsed, typingEnergy: this.typingEnergy,
-        tilt: this.headTilt, sleep: this.sleepAmount, happy: this.squintAmount,
-        curious: this.curiousAmount, cross: this.crossAmount, privacy: this.privacyMode,
-      });
+      const shoulder = this.spinePoint(0.65, breath);
+      const size = this.catHeight + 70;
+      const skin = this.customSkin ?? resolveCustomSkin(STAR_DOCTOR_SKIN);
+      this.starDoctor.render(ctx, {
+        x: shoulder.x, y: shoulder.y + this.deskHopY, size, tilt: this.headTilt,
+      }, () => this.drawCustomEyes(ctx, skin, this.faceTurnX * 0.2, 0));
+      this.drawMiniMouse(ctx);
+      this.drawKeyboard(ctx);
+      for (const paw of [this.leftPaw, this.rightPaw]) {
+        const sh = this.getLiveShoulder(paw, breath);
+        const eyeX = shoulder.x + (paw.side === 'left' ? -21 : 21);
+        const eyeY = shoulder.y - size * 0.225;
+        const cover = this.privacyClose;
+        const px = paw.pos.x * (1 - cover) + eyeX * cover;
+        const py = paw.pos.y * (1 - cover) + eyeY * cover;
+        this.drawPlumpCatArm(ctx, paw.side, sh.x, sh.y, px, py, paw.impactSquash, true);
+      }
+      this.drawCatAliveFx(ctx, performance.now(), breath);
       if (this.showKeyBubbles && !this.privacyMode) {
         this.drawKeyBubbles(ctx);
         this.drawMouseBadges(ctx);

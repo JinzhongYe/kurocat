@@ -12,7 +12,7 @@ async function loadTs(path, transform = s => s) {
 
 const { DEFAULT_BUILTIN_CATS, is2DOnlySkin } = await loadTs('../src/catSkins.ts');
 const { StarDoctorRenderer } = await loadTs('../src/starDoctorRenderer.ts', s =>
-  s.replace("import doctorUrl from './assets/star-doctor.png';", "const doctorUrl = 'star-doctor.png';"));
+  s.replace("import doctorUrl from './assets/star-doctor-body.png';", "const doctorUrl = 'star-doctor-body.png';"));
 
 test('Star Doctor has its own selectable ID and uses 2D in every locale', () => {
   assert.equal(DEFAULT_BUILTIN_CATS.filter(c => c.id === 'star-doctor').length, 1);
@@ -26,7 +26,7 @@ test('Star Doctor has its own selectable ID and uses 2D in every locale', () => 
   }
 });
 
-test('renderer loads once, draws the portrait, reacts to status and releases its image', t => {
+test('renderer loads once, draws the body and shared face, and releases its image', t => {
   const previousImage = globalThis.Image;
   let image;
   globalThis.Image = class {
@@ -39,25 +39,25 @@ test('renderer loads once, draws the portrait, reacts to status and releases its
   const renderer = new StarDoctorRenderer(() => { ready++; });
   const calls = [];
   const ctx = new Proxy({}, { get: (_, key) => (...args) => calls.push([key, ...args]) });
-  const state = { elapsed: 1, typingEnergy: 0.8, tilt: 1, sleep: 0, happy: 0, curious: 0, cross: 0, privacy: false };
+  const pose = { x: 196, y: 230, size: 296, tilt: 0 };
+  let faces = 0;
+  const drawFace = () => { faces++; };
   renderer.prepare();
   const originalImage = image;
   renderer.prepare();
   assert.equal(image, originalImage);
-  renderer.render(ctx, 420, 440, state);
+  renderer.render(ctx, pose, drawFace);
   assert.equal(calls.length, 0, 'never draw an unloaded image');
   image.complete = true;
   image.naturalWidth = 1254;
   image.onload();
   assert.equal(ready, 1);
-  for (const [field, value, badge] of [['sleep', 1, 'Zzz'], ['happy', 1, '♥'], ['curious', 1, '?'], ['cross', 1, '!'], ['privacy', true, '🔒']]) {
-    calls.length = 0;
-    renderer.render(ctx, 420, 440, { ...state, [field]: value });
-    assert.equal(calls.filter(c => c[0] === 'drawImage').length, 1);
-    assert.ok(calls.some(c => c[0] === 'fillText' && c[1] === badge));
-    assert.equal(calls[0][0], 'save');
-    assert.equal(calls.at(-1)[0], 'restore');
-  }
+  calls.length = 0;
+  renderer.render(ctx, pose, drawFace);
+  assert.equal(faces, 1);
+  assert.equal(calls.filter(c => c[0] === 'drawImage').length, 1);
+  assert.equal(calls[0][0], 'save');
+  assert.equal(calls.at(-1)[0], 'restore');
   renderer.release();
   assert.equal(image.onload, null);
   assert.equal(image.onerror, null);
